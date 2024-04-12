@@ -15,6 +15,10 @@ nlp = cltk.NLP(language="grc")
 stop = "μή, δ, ἑαυτοῦ, ἄν, ἀλλ', ἀλλά, ἄλλος, ἀπό, ἄρα, αὐτός, δ', δέ, δή, διά, δαί, δαίς, ἔτι, ἐγώ, ἐκ, ἐμός, ἐν, ἐπί, εἰ, εἰμί, εἴμι, εἰς, γάρ, γε, γα, ἡ, ἤ, καί, κατά, μέν, μετά, μή, ὁ, ὅδε, ὅς, ὅστις, ὅτι, οὕτως, οὗτος, οὔτε, οὖν, οὐδείς, οἱ, οὐ, οὐδέ, οὐκ, περί, πρός, σύ, σύν, τά, τε, τήν, τῆς, τῇ, τι, τί, τις, τίς, τό, τοί, τοιοῦτος, τόν, τούς, τοῦ, τῶν, τῷ, ὑμός, ὑπέρ, ὑπό, ὡς, ὦ, ὥστε, ἐάν, παρά, σός"
 stop_words = [word for word in stop.split(", ")]
 
+extract_lemmas_by_sentence("tlg0003.tlg001.perseus-grc2.xml")
+extract_lemmas_by_sentence("tlg0012.tlg001.perseus-grc2.xml")
+extract_lemmas_by_sentence("tlg0012.tlg002.perseus-grc2.xml")
+
 
 def remove_diacritics(text_list):
     import unicodedata
@@ -127,6 +131,49 @@ def pos_tag(string):
     pos_tag = [tag_mapping.get(tag, tag) for tag in pos]
     return pos_tag
 
+def extract_lemmas_by_sentence(path):
+    tree = ET.parse(path)
+    root = tree.getroot()
+    
+    sentences = {}
+
+    def extract_pos(morph):
+        return morph[0] if morph else None
+
+    for sentence in root.findall('.//s'):
+        sentence_number = sentence.attrib.get('n', 'unknown')
+        sentences[sentence_number] = []
+        
+        for token in sentence.findall('.//t'):
+            word_info = {'word_form': '', 'morph': '', 'lemmas_pos': []}
+
+            word_form = token.find('f')
+            if word_form is not None:
+                word_info['word_form'] = word_form.text
+          
+            word_info['morph'] = token.attrib.get('o', '')
+            
+            lemma = token.find('l')
+            if lemma is not None:
+                for l1 in lemma.findall('l1'):
+                    pos = extract_pos(l1.attrib.get('o', ''))
+                    if pos:
+                        word_info['lemmas_pos'].append((l1.text, pos))
+
+                for l2 in lemma.findall('l2'):
+                    pos = extract_pos(l2.attrib.get('o', ''))
+                    if pos:
+                        word_info['lemmas_pos'].append((l2.text, pos))
+            
+            sentences[sentence_number].append(word_info)
+    
+    split_path = path.split(".")
+    
+    filename = f"{'.'.join(split_path[:3])}.json"
+        
+    with open(filename, 'w', encoding='utf-8') as f:
+        json.dump(sentences, f, ensure_ascii=False, indent=4)
+
 
 def get_synonims(original):
 
@@ -184,21 +231,24 @@ def get_synonims(original):
 def find_sentence_with_lemma(lemma, paths):
     sents = []
     for path in paths:
-        tree = ET.parse(path)
-        root = tree.getroot()
-        for sentence in root.findall('.//sentence'):
+        with open(path, "r", encoding="utf-8") as file:
+            corpus = json.load(file)
 
-            for word in sentence.findall('.//word'):
-                corpus_lemma = word.get('lemma')
+            for sent_id in enumerate(corpus):
 
-                if corpus_lemma is not None and lemma == corpus_lemma:
-                    word_forms = [word.get('form') for word in sentence.findall('.//word')]
-                    sent = " ".join(word_forms) 
-                    sents.append(sent)
+                for word_dic in corpus[f"{sent_id}"]:
+
+                    for lemma_pos in word_dic["lemma_pos"]:
+                        corpus_lemma = lemma_pos[0]
+                    
+                        if corpus_lemma is not None and lemma == corpus_lemma:
+                            word_forms = [dic["word_form"] for dic in corpus[f"{sent_id}"]]
+                            sent = " ".join(word_forms) 
+                            sents.append(sent)
+                            break
+                
+                if len(sents) == 4:
                     break
-            
-            if len(sents) == 4:
-                break
 
     return sents
 
