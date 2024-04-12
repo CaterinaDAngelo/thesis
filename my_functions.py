@@ -15,11 +15,6 @@ nlp = cltk.NLP(language="grc")
 stop = "μή, δ, ἑαυτοῦ, ἄν, ἀλλ', ἀλλά, ἄλλος, ἀπό, ἄρα, αὐτός, δ', δέ, δή, διά, δαί, δαίς, ἔτι, ἐγώ, ἐκ, ἐμός, ἐν, ἐπί, εἰ, εἰμί, εἴμι, εἰς, γάρ, γε, γα, ἡ, ἤ, καί, κατά, μέν, μετά, μή, ὁ, ὅδε, ὅς, ὅστις, ὅτι, οὕτως, οὗτος, οὔτε, οὖν, οὐδείς, οἱ, οὐ, οὐδέ, οὐκ, περί, πρός, σύ, σύν, τά, τε, τήν, τῆς, τῇ, τι, τί, τις, τίς, τό, τοί, τοιοῦτος, τόν, τούς, τοῦ, τῶν, τῷ, ὑμός, ὑπέρ, ὑπό, ὡς, ὦ, ὥστε, ἐάν, παρά, σός"
 stop_words = [word for word in stop.split(", ")]
 
-extract_lemmas_by_sentence("tlg0003.tlg001.perseus-grc2.xml")
-extract_lemmas_by_sentence("tlg0012.tlg001.perseus-grc2.xml")
-extract_lemmas_by_sentence("tlg0012.tlg002.perseus-grc2.xml")
-
-
 def remove_diacritics(text_list):
     import unicodedata
     return [''.join(c for c in unicodedata.normalize('NFD', text) if unicodedata.category(c) != 'Mn') for text in text_list]
@@ -189,20 +184,20 @@ def get_synonims(original):
             }
         }
     """
-    lemmas_original = [lemmatize(string) for string in original]
+    lemmata_original = [lemmatize(string) for string in original]
     pos_original = [pos_tag(string) for string in original]
 
-    print(lemmas_original)
+    print(lemmata_original)
     
     synonims = {}
-    for i, sentence in enumerate(lemmas_original):
+    for i, sentence in enumerate(lemmata_original):
         synonims[f"sentence {i}"] = {}
         
         for lemma in sentence:
 
             if lemma not in stop_words: # we don't compute the synonims for the stopwords, since they have no semantic importance
                 synonims[f"sentence {i}"][lemma] = {}
-                lemma_id = lemmas_original.index(lemma)
+                lemma_id = lemmata_original.index(lemma)
                 pos = pos_original[lemma_id]
 
                 try:
@@ -219,7 +214,7 @@ def get_synonims(original):
                             # synonims[f"sentence {i}"][lemma][f"{sense}"] = []
                             synsets_r = requests.get(f"https://greekwordnet.chs.harvard.edu/api/synsets/{pos}/{synset}/lemmas", verify=False)
                             synsets_dic = synsets_r.json()
-                            synonims[f"sentence {i}"][lemma][f"{synset}"] = [sin_dict["lemma"] for sin_dict in synsets_dic["results"][0]["lemmas"]["literal"][:5]]
+                            synonims[f"sentence {i}"][lemma][f"{synset}"] = (pos,[sin_dict["lemma"] for sin_dict in synsets_dic["results"][0]["lemmas"]["literal"]])
 
                 except Exception as e:
                     print(f"Error processing lemma {lemma}: {e}")
@@ -228,7 +223,7 @@ def get_synonims(original):
     return synonims
 
 
-def find_sentence_with_lemma(lemma, paths):
+def find_sentence_with_lemma(pos, lemma, paths):
     sents = []
     for path in paths:
         with open(path, "r", encoding="utf-8") as file:
@@ -240,8 +235,9 @@ def find_sentence_with_lemma(lemma, paths):
 
                     for lemma_pos in word_dic["lemma_pos"]:
                         corpus_lemma = lemma_pos[0]
+                        corpus_pos = lemma_pos[1]
                     
-                        if corpus_lemma is not None and lemma == corpus_lemma:
+                        if corpus_lemma is not None and lemma == corpus_lemma and pos == corpus_pos :
                             word_forms = [dic["word_form"] for dic in corpus[f"{sent_id}"]]
                             sent = " ".join(word_forms) 
                             sents.append(sent)
@@ -273,7 +269,7 @@ def get_word_embedding(word, model, tokenizer):
     return word_embedding
 
 
-def get_synset_embeddings(list_synonyms, model, tokenizer):
+def get_synset_embeddings(pos_list_synonyms, model, tokenizer):
 
     """
     Function that, given a list of synonyms, a model and a tokenizer,
@@ -283,21 +279,20 @@ def get_synset_embeddings(list_synonyms, model, tokenizer):
     """
 
     synonyms_embeddings_t = []
-    for synonym in list_synonyms:
+    pos = pos_list_synonyms[0]
+    for synonym in pos_list_synonyms[1]:
         synonym_embeddings = []
-        syn_sentence = find_sentence_with_lemma(synonym, paths)
+        syn_sentences = find_sentence_with_lemma(pos, synonym, paths)
 
-        if syn_sentence != []:
+        if syn_sentences != []:
 
-            for sentence in syn_sentence:
+            for syn_sent in syn_sentences:
+                syn_sentence_embeddings = get_word_in_sent_embedding(syn_sent, model, tokenizer)
+                syn_lemmata = lemmatize(syn_sent)
 
-                sentence_embeddings = get_word_in_sent_embedding(sentence, model, tokenizer)
-                doc = nlp.analyze(sentence)
-                lemmas = doc.lemmata
-                if synonym in lemmas:
-
-                    synonym_id = lemmas.index(synonym)
-                    synonym_embeddings.append(sentence_embeddings[synonym_id])
+                if synonym in syn_lemmata:
+                    synonym_id = syn_lemmata.index(synonym)
+                    synonym_embeddings.append(syn_sentence_embeddings[synonym_id])
             
             syn_emb_tup = (synonym, synonym_embeddings)
             if syn_emb_tup[1] != []:
@@ -381,7 +376,6 @@ def dic_similarities_synset(syn_dic, original, model, tokenizer):
                     if synset_embeddings != []:
 
                         for synonym, embeddings in synset_embeddings:
-                            print(embeddings)
                             similarities = []
 
                             for synonym_embedding in embeddings:
@@ -392,7 +386,7 @@ def dic_similarities_synset(syn_dic, original, model, tokenizer):
                                 similarities.append(sim)
 
                             similarities.sort()
-                            sim_tup = (synonym, similarities[-1])
+                            sim_tup = (synonym, similarities[-20:])
                             sents_sim[f"sentence {i}"][f"{lemma}"].append(sim_tup)
         
     return sents_sim
