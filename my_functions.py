@@ -1,5 +1,6 @@
 import torch
 import statistics
+import csv
 import numpy as np
 from scipy import stats
 from torch.nn.functional import cosine_similarity
@@ -108,6 +109,20 @@ def report_similarity(original_emb_dict, paraphrased_emb_dict, confound_emb_dict
 
     return similarity_scores
 
+def create_wordnet(path):
+    with open(path, newline='', encoding='utf-8') as file:
+        reader = csv.reader(file, delimiter='\t')
+
+        wordnet = {}
+
+        for row in reader:
+            if not row[0].startswith("#"):
+                synset = row[0]
+                lemma = row[2]
+                if synset not in wordnet.keys():
+                    wordnet[f"{synset}"] = []
+                wordnet[f"{synset}"].append(lemma)
+
 
 def lemmatize(string):
     doc = nlp.analyze(text=string)
@@ -170,7 +185,7 @@ def extract_lemmas_by_sentence(path):
         json.dump(sentences, f, ensure_ascii=False, indent=4)
 
 
-def get_synonims(original):
+def get_synonims(original, wordnet):
 
     """
     Function that takes as input a list of original sentences and, using the Ancient
@@ -179,7 +194,7 @@ def get_synonims(original):
     {"sentence i": 
         {"lemma i": 
             {"synset i": 
-                [list of first 5 synonims for that particular synset]
+                [list of (pos, synonim) for that particular synset]
                 }
             }
         }
@@ -201,20 +216,36 @@ def get_synonims(original):
                 pos = pos_original[lemma_id]
 
                 try:
-                    lemma_r = requests.get(f"https://greekwordnet.chs.harvard.edu/api/lemmas/{lemma}/synsets", verify=False)
-                    lemma_dic = lemma_r.json()
 
-                    if lemma_dic["results"]:
-                        for i in len(lemma_dic["results"]):
+                    synsets = []
+                    for offset in wordnet:
+                        offset_pos = offset.split("-")[1]
+
+                        if lemma in wordnet[f"{offset}"] and offset_pos == pos:
+                            synsets.append(offset)
+
+                    for synset in synsets:
+                        synonims[f"sentence {i}"][lemma][f"{synset}"] = (pos,[sin for sin in wordnet[f"{synset}"]])
+
+
+                
+
+
+                # try:
+                #     lemma_r = requests.get(f"https://greekwordnet.chs.harvard.edu/api/lemmas/{lemma}/synsets", verify=False)
+                #     lemma_dic = lemma_r.json()
+
+                #     if lemma_dic["results"]:
+                #         for i in len(lemma_dic["results"]):
                             
-                            if lemma_dic["results"][i]["pos"] == pos and lemma_dic["results"][i]["synsets"]["literal"]:
-                                synsets_pos = [(dic["offset"], dic["pos"]) for dic in lemma_dic["results"][0]["synsets"]["literal"]]
+                #             if lemma_dic["results"][i]["pos"] == pos and lemma_dic["results"][i]["synsets"]["literal"]:
+                #                 synsets_pos = [(dic["offset"], dic["pos"]) for dic in lemma_dic["results"][0]["synsets"]["literal"]]
                         
-                        for synset, pos in synsets_pos:
-                            # synonims[f"sentence {i}"][lemma][f"{sense}"] = []
-                            synsets_r = requests.get(f"https://greekwordnet.chs.harvard.edu/api/synsets/{pos}/{synset}/lemmas", verify=False)
-                            synsets_dic = synsets_r.json()
-                            synonims[f"sentence {i}"][lemma][f"{synset}"] = (pos,[sin_dict["lemma"] for sin_dict in synsets_dic["results"][0]["lemmas"]["literal"]])
+                #         for synset, pos in synsets_pos:
+                #             # synonims[f"sentence {i}"][lemma][f"{sense}"] = []
+                #             synsets_r = requests.get(f"https://greekwordnet.chs.harvard.edu/api/synsets/{pos}/{synset}/lemmas", verify=False)
+                #             synsets_dic = synsets_r.json()
+                #             synonims[f"sentence {i}"][lemma][f"{synset}"] = (pos,[sin_dict["lemma"] for sin_dict in synsets_dic["results"][0]["lemmas"]["literal"]])
 
                 except Exception as e:
                     print(f"Error processing lemma {lemma}: {e}")
@@ -349,8 +380,10 @@ def dic_similarities_synset(syn_dic, original, model, tokenizer):
                             ....]
                         }
                     }
-    where the similarity scores are calculated between the average of the embeddings
-    of the first ten lemmas in a synset and the contextual embedding of the word
+    where the similarity scores are calculated between the contextual embeddings of every
+    synonym in a synset (computed by extracting 4 different sentences containing the synonym from 
+    a corpus) and the contextual embedding of the word: for each synonym only the highest score
+    between the 4 different embeddings is registered
     """
 
     sents_sim = {}
@@ -360,8 +393,7 @@ def dic_similarities_synset(syn_dic, original, model, tokenizer):
         sent_embeddings = get_word_in_sent_embedding(sentence, model, tokenizer) # getting the contextual embedding for each word in the sentence
         sents_sim[f"sentence {i}"] = {}
         
-        doc = nlp.analyze(text=sentence)
-        lemmas = doc.lemmata # getting the lemmas of each word in the sentence
+        lemmas = lemmatize(sentence) # getting the lemmas of each word in the sentence
 
         for lemma in syn_dic[f"sentence {i}"]:
 
@@ -376,18 +408,19 @@ def dic_similarities_synset(syn_dic, original, model, tokenizer):
                     if synset_embeddings != []:
 
                         for synonym, embeddings in synset_embeddings:
-                            similarities = []
+                            if synonym != lemma:
+                                similarities = []
 
-                            for synonym_embedding in embeddings:
-                                # adjusting the dimensions of word and sense embedding:
-                                synonym_embedding = synonym_embedding.unsqueeze(0) if synonym_embedding.dim() == 1 else synonym_embedding 
-                                word_embedding = word_embedding.unsqueeze(0) if word_embedding.dim() == 1 else word_embedding
-                                sim = cosine_similarity(synonym_embedding, word_embedding) 
-                                similarities.append(sim)
+                                for synonym_embedding in embeddings:
+                                    # adjusting the dimensions of word and sense embedding:
+                                    synonym_embedding = synonym_embedding.unsqueeze(0) if synonym_embedding.dim() == 1 else synonym_embedding 
+                                    word_embedding = word_embedding.unsqueeze(0) if word_embedding.dim() == 1 else word_embedding
+                                    sim = cosine_similarity(synonym_embedding, word_embedding) 
+                                    similarities.append(sim)
 
-                            similarities.sort()
-                            sim_tup = (synonym, similarities[-20:])
-                            sents_sim[f"sentence {i}"][f"{lemma}"].append(sim_tup)
+                                similarities.sort()
+                                sim_tup = (synonym, similarities[-1])
+                                sents_sim[f"sentence {i}"][f"{lemma}"].append(sim_tup)
         
     return sents_sim
 
@@ -402,17 +435,18 @@ def report_similarities(sents_sim):
     for i in range(len(sents_sim)):
 
         for lemma in sents_sim[f"sentence {i}"]:
-            values = [t.item() for (s, t) in sents_sim[f"sentence {i}"][f"{lemma}"]] # taking the similarity scores to search for the maximum
-            values.sort()
-            max_value = values[-1]
-            second_max_value = values[-2]
-            max_index = values.index(max_value)
-            second_max_index = values.index(second_max_value)
+            synonyms = {}
+            # print(synonyms)
+            sorted_values = sorted(sents_sim[f"sentence {i}"][f"{lemma}"], key=lambda x: x[1], reverse=True)
+            print(f"The best synonyms for {lemma} are:")
+            for syn, value in sorted_values[:20]:
+                if syn in synonyms and synonyms[f"{syn}"] < value:
+                        synonyms[f"{syn}"] = value
+                        print(f"\t{syn} with a score of {value}")
+                elif syn not in synonyms:
+                    synonyms[f"{syn}"] = value
+                    print(f"\t{syn} with a score of {value}")
+                else:
+                    continue
 
-            synonym = sents_sim[f"sentence {i}"][f"{lemma}"][max_index][0] 
-            if synonym != lemma:
-                print(f"The best synonim for {lemma} is {synonym} with a score of {max_value}")
-            else:
-                synonym = sents_sim[f"sentence {i}"][f"{lemma}"][second_max_index][1] # making sure that the synonim is not the same as the lemma
-                print(f"The best synonim for {lemma} is {synonym} with a score of {second_max_value}")
 
