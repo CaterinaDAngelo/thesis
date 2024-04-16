@@ -9,7 +9,7 @@ import requests
 import json
 import xml.etree.ElementTree as ET
 
-paths = ["tlg0003.tlg001.perseus-grc1.1.tb.xml", "tlg0012.tlg002.perseus-grc1.tb.xml"]
+paths = ["tlg0012.tlg001.perseus-grc2.json", "tlg0012.tlg002.perseus-grc2.json"]
 
 nlp = cltk.NLP(language="grc")
 
@@ -123,6 +123,8 @@ def create_wordnet(path):
                     wordnet[f"{synset}"] = []
                 wordnet[f"{synset}"].append(lemma)
 
+    return wordnet
+
 
 def lemmatize(string):
     doc = nlp.analyze(text=string)
@@ -204,20 +206,22 @@ def get_synonims(original, wordnet):
 
     print(lemmata_original)
     
-    synonims = {}
+    synonyms = {}
     for i, sentence in enumerate(lemmata_original):
-        synonims[f"sentence {i}"] = {}
+        synonyms[f"sentence {i}"] = {}
         
         for lemma in sentence:
 
             if lemma not in stop_words: # we don't compute the synonims for the stopwords, since they have no semantic importance
-                synonims[f"sentence {i}"][lemma] = {}
-                lemma_id = lemmata_original.index(lemma)
-                pos = pos_original[lemma_id]
+                synonyms[f"sentence {i}"][lemma] = {}
+                lemma_id = sentence.index(lemma)
+                pos = pos_original[i][lemma_id]
+
+                syn_list = []
 
                 try:
-
                     synsets = []
+
                     for offset in wordnet:
                         offset_pos = offset.split("-")[1]
 
@@ -225,7 +229,12 @@ def get_synonims(original, wordnet):
                             synsets.append(offset)
 
                     for synset in synsets:
-                        synonims[f"sentence {i}"][lemma][f"{synset}"] = (pos,[sin for sin in wordnet[f"{synset}"]])
+        
+                        for syn in wordnet[f"{synset}"]:
+                            if syn not in syn_list:
+                                syn_list.append(syn)
+
+                        synonyms[f"sentence {i}"][lemma][f"{synset}"] = (pos, syn_list)
 
 
                 
@@ -251,7 +260,7 @@ def get_synonims(original, wordnet):
                     print(f"Error processing lemma {lemma}: {e}")
                     # Optionally, handle specific exceptions more granularly
                 
-    return synonims
+    return synonyms
 
 
 def find_sentence_with_lemma(pos, lemma, paths):
@@ -260,11 +269,11 @@ def find_sentence_with_lemma(pos, lemma, paths):
         with open(path, "r", encoding="utf-8") as file:
             corpus = json.load(file)
 
-            for sent_id in enumerate(corpus):
+            for sent_id in range(1, len(corpus)+1):
 
                 for word_dic in corpus[f"{sent_id}"]:
 
-                    for lemma_pos in word_dic["lemma_pos"]:
+                    for lemma_pos in word_dic[f"lemmas_pos"]:
                         corpus_lemma = lemma_pos[0]
                         corpus_pos = lemma_pos[1]
                     
@@ -276,7 +285,8 @@ def find_sentence_with_lemma(pos, lemma, paths):
                 
                 if len(sents) == 4:
                     break
-
+    
+    print(sents)
     return sents
 
 
