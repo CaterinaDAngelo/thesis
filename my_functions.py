@@ -4,19 +4,29 @@ import csv
 import numpy as np
 from scipy import stats
 from torch.nn.functional import cosine_similarity
-import cltk
+# import cltk
 import requests
 import json
 import xml.etree.ElementTree as ET
+import spacy
 
-paths = ["tlg0012.tlg001.perseus-grc2.json", "tlg0012.tlg002.perseus-grc2.json"]
+nlp = spacy.load('grc_proiel_trf')
 
-nlp = cltk.NLP(language="grc")
+# nlp = cltk.NLP(language="grc")
 
 stop = "μή, δ, ἑαυτοῦ, ἄν, ἀλλ', ἀλλά, ἄλλος, ἀπό, ἄρα, αὐτός, δ', δέ, δή, διά, δαί, δαίς, ἔτι, ἐγώ, ἐκ, ἐμός, ἐν, ἐπί, εἰ, εἰμί, εἴμι, εἰς, γάρ, γε, γα, ἡ, ἤ, καί, κατά, μέν, μετά, μή, ὁ, ὅδε, ὅς, ὅστις, ὅτι, οὕτως, οὗτος, οὔτε, οὖν, οὐδείς, οἱ, οὐ, οὐδέ, οὐκ, περί, πρός, σύ, σύν, τά, τε, τήν, τῆς, τῇ, τι, τί, τις, τίς, τό, τοί, τοιοῦτος, τόν, τούς, τοῦ, τῶν, τῷ, ὑμός, ὑπέρ, ὑπό, ὡς, ὦ, ὥστε, ἐάν, παρά, σός"
 stop_words = [word for word in stop.split(", ")]
 stop_words.append('̓')
 stop_words.append(",")
+
+with open("tlg0012.tlg001.perseus-grc2.json", "r", encoding = "utf-8") as file_1:
+    corpus_1 = json.load(file_1)
+
+with open("tlg0012.tlg002.perseus-grc2.json", "r", encoding = "utf-8") as file_2:
+    corpus_2 = json.load(file_2)
+
+corpora = [corpus_1, corpus_2]
+
 
 def remove_diacritics(text_list):
     import unicodedata
@@ -129,8 +139,8 @@ def create_wordnet(path):
 
 
 def lemmatize(string):
-    doc = nlp.analyze(text=string)
-    lemmas = doc.lemmata 
+    doc = nlp(string)
+    lemmas = [token.lemma_ for token in doc]
     return lemmas
 
 def pos_tag(string):
@@ -140,8 +150,8 @@ def pos_tag(string):
     'VERB': 'v',
     'ADJ': 'a'
     }
-    doc = nlp.analyze(text=string)
-    pos = doc.pos
+    doc = nlp(string)
+    pos = [token.pos_ for token in doc]
     pos_tag = [tag_mapping.get(tag, tag) for tag in pos]
     return pos_tag
 
@@ -189,24 +199,38 @@ def extract_lemmas_by_sentence(path):
         json.dump(sentences, f, ensure_ascii=False, indent=4)
 
 
-def get_list_lemmata(paths):
+def get_list_lemmata():
 
     lemmata_list = []
     
-    for path in paths:
+    for corpus in corpora:
 
-        with open(path, "r") as file:
-            corpus = json.load(file)
+        for sent_id in range(1, len(corpus)+1):
 
-            for sent_id in range(1, len(corpus)+1):
+            for word_dic in corpus[f"{sent_id}"]:
 
-                for word_dic in corpus[f"{sent_id}"]:
-
-                    for lemma_pos in word_dic[f"lemmas_pos"]:
-                        lemmata_list.append(lemma_pos[0])
+                for lemma_pos in word_dic[f"lemmas_pos"]:
+                    lemmata_list.append(lemma_pos[0])
 
     return lemmata_list
 
+
+def lemmatize_corpus(corpus, sent_id):
+    lemmata = []
+
+
+    for i in range(1, len(corpus)+1):
+
+        if i == sent_id:
+            for word_dic in corpus[f"{sent_id}"]:
+                word_lemmata = []
+
+                for lemma_pos in word_dic[f"lemmas_pos"]:
+                    word_lemmata.append(lemma_pos[0])
+                
+                lemmata.append(word_lemmata)
+
+    return lemmata
 
 
 
@@ -287,28 +311,31 @@ def get_synonims(original, wordnet, lemmata_list):
     return synonyms
 
 
-def find_sentence_with_lemma(pos, lemma, paths):
+def find_sentence_with_lemma(pos, lemma):
     sents = []
-    for path in paths:
-        with open(path, "r", encoding="utf-8") as file:
-            corpus = json.load(file)
+    for corpus_id, corpus in enumerate(corpora):
 
-            for sent_id in range(1, len(corpus)+1):
+        for sent_id in range(1, len(corpus)+1):
 
-                for word_dic in corpus[f"{sent_id}"]:
+            # while len(sents) <= 4:
+            #     print("while")
 
-                    for lemma_pos in word_dic[f"lemmas_pos"]:
-                        corpus_lemma = lemma_pos[0]
-                        corpus_pos = lemma_pos[1]
-                    
-                        if corpus_lemma is not None and lemma == corpus_lemma and pos == corpus_pos :
-                            word_forms = [dic["word_form"] for dic in corpus[f"{sent_id}"]]
-                            sent = " ".join(word_forms) 
-                            sents.append(sent)
-                            break
+            for word_dic in corpus[f"{sent_id}"]:
+
+                for lemma_pos in word_dic[f"lemmas_pos"]:
+                    corpus_lemma = lemma_pos[0]
+                    corpus_pos = lemma_pos[1]
                 
-                if len(sents) == 4:
-                    break
+                    if corpus_lemma is not None and lemma == corpus_lemma and pos == corpus_pos :
+                        word_forms = [dic["word_form"] for dic in corpus[f"{sent_id}"]]
+                        sent = " ".join(word_forms) 
+                        lemma_id = f"{corpus_id}_{sent_id}"
+                        id_sents = (lemma_id, sent)
+                        sents.append(id_sents)
+                        break
+            
+            if len(sents) == 4:
+                break
     
     print(sents)
     return sents
@@ -385,18 +412,18 @@ def get_synonym_embeddings(pos_list_synonyms, model, tokenizer):
 
     for synonym in list_synonyms:
         synonym_embeddings = []
-        syn_sentences = find_sentence_with_lemma(pos, synonym, paths)
+        syn_sentences = find_sentence_with_lemma(pos, synonym)
 
-        # if syn_sentences != []:
-
-        for syn_sent in syn_sentences:
+        for id, syn_sent in syn_sentences:
             syn_sentence_embeddings = get_word_in_sent_embedding(syn_sent, model, tokenizer)
-            syn_lemmata = lemmatize(syn_sent)
+            corpus_id = int(id.split("_")[0])
+            sent_id = int(id.split("_")[1])
+            syn_lemmata = lemmatize_corpus(corpora[corpus_id], sent_id)
 
-            if synonym in syn_lemmata:
-                print(".")
-                synonym_id = syn_lemmata.index(synonym)
-                synonym_embeddings.append(syn_sentence_embeddings[synonym_id])
+            for i, list_lemmata in enumerate(syn_lemmata): # for every list of different lemmatizations per synonym
+
+                if synonym in list_lemmata:
+                    synonym_embeddings.append(syn_sentence_embeddings[i])
             
         syn_emb_tup = (synonym, synonym_embeddings)
         if syn_emb_tup[1] != []:
