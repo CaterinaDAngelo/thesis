@@ -334,41 +334,6 @@ def get_word_embedding(word, model, tokenizer):
     return word_embedding
 
 
-def get_synonym_embeddings(pos_list_synonyms, model, tokenizer):
-
-    """
-    Function that, given a list of synonyms, a model and a tokenizer,
-    computes the contextual embedding of each synonym in the synset 
-    in four different sentences taken from an ancient greek corpus.
-    Returns a list of tuples (synonym, [embeddings]).
-    """
-
-    synonyms_embeddings_t = []
-    pos = pos_list_synonyms[0]
-    list_synonyms = pos_list_synonyms[1]
-
-    for synonym in list_synonyms:
-        synonym_embeddings = []
-        syn_sentences = find_sentence_with_lemma(pos, synonym, paths)
-
-        # if syn_sentences != []:
-
-        for syn_sent in syn_sentences:
-            syn_sentence_embeddings = get_word_in_sent_embedding(syn_sent, model, tokenizer)
-            syn_lemmata = lemmatize(syn_sent)
-
-            if synonym in syn_lemmata:
-                print(".")
-                synonym_id = syn_lemmata.index(synonym)
-                synonym_embeddings.append(syn_sentence_embeddings[synonym_id])
-            
-        syn_emb_tup = (synonym, synonym_embeddings)
-        # if syn_emb_tup[1] != []:
-        synonyms_embeddings_t.append(syn_emb_tup)
-
-    return synonyms_embeddings_t
-
-
 def get_word_in_sent_embedding(sentence, model, tokenizer):
 
     """
@@ -404,6 +369,40 @@ def get_word_in_sent_embedding(sentence, model, tokenizer):
 
     return word_embeddings
 
+
+def get_synonym_embeddings(pos_list_synonyms, model, tokenizer):
+
+    """
+    Function that, given a list of synonyms, a model and a tokenizer,
+    computes the contextual embedding of each synonym in the synset 
+    in four different sentences taken from an ancient greek corpus.
+    Returns a list of tuples (synonym, [embeddings]).
+    """
+
+    synonyms_embeddings_t = []
+    pos = pos_list_synonyms[0]
+    list_synonyms = pos_list_synonyms[1]
+
+    for synonym in list_synonyms:
+        synonym_embeddings = []
+        syn_sentences = find_sentence_with_lemma(pos, synonym, paths)
+
+        # if syn_sentences != []:
+
+        for syn_sent in syn_sentences:
+            syn_sentence_embeddings = get_word_in_sent_embedding(syn_sent, model, tokenizer)
+            syn_lemmata = lemmatize(syn_sent)
+
+            if synonym in syn_lemmata:
+                print(".")
+                synonym_id = syn_lemmata.index(synonym)
+                synonym_embeddings.append(syn_sentence_embeddings[synonym_id])
+            
+        syn_emb_tup = (synonym, synonym_embeddings)
+        if syn_emb_tup[1] != []:
+            synonyms_embeddings_t.append(syn_emb_tup)
+
+    return synonyms_embeddings_t
 
 
 def dic_similarities_synset(syn_dic, original, model, tokenizer):
