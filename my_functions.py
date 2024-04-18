@@ -103,7 +103,7 @@ def report_similarity(original_emb_dict, paraphrased_emb_dict, confound_emb_dict
     for i in range(len(original_emb_dict[f"{method}_emb_dict"])):
         if count > (len(original_emb_dict[f"{method}_emb_dict"]) - 1):
             count = 0
-        o_o_similarity.append(toch_cosine(original_emb_dict[f"{method}_emb_dict"][f"{method}_embedding_{i}"], original_emb_dict[f"{method}_emb_dict"][f"{method}_embedding_{count}"]))
+        o_o_similarity.append(torch_cosine(original_emb_dict[f"{method}_emb_dict"][f"{method}_embedding_{i}"], original_emb_dict[f"{method}_emb_dict"][f"{method}_embedding_{count}"]))
         count += 1
 
     similarity_scores["originalvsparaphrased"]["average"] = np.mean(o_p_similarity)
