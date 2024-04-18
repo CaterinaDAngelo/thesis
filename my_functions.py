@@ -94,16 +94,16 @@ def report_similarity(original_emb_dict, paraphrased_emb_dict, confound_emb_dict
     o_o_similarity = []
 
     for i in range(len(original_emb_dict[f"{method}_emb_dict"])):
-        o_p_similarity.append(cosine_similarity(original_emb_dict[f"{method}_emb_dict"][f"{method}_embedding_{i}"], paraphrased_emb_dict[f"{method}_emb_dict"][f"{method}_embedding_{i}"]))
+        o_p_similarity.append(torch_cosine(original_emb_dict[f"{method}_emb_dict"][f"{method}_embedding_{i}"], paraphrased_emb_dict[f"{method}_emb_dict"][f"{method}_embedding_{i}"]))
     
     for i in range(len(original_emb_dict[f"{method}_emb_dict"])):
-        o_c_similarity.append(cosine_similarity(original_emb_dict[f"{method}_emb_dict"][f"{method}_embedding_{i}"], confound_emb_dict[f"{method}_emb_dict"][f"{method}_embedding_{i}"]))
+        o_c_similarity.append(torch_cosine(original_emb_dict[f"{method}_emb_dict"][f"{method}_embedding_{i}"], confound_emb_dict[f"{method}_emb_dict"][f"{method}_embedding_{i}"]))
 
     count = 1
     for i in range(len(original_emb_dict[f"{method}_emb_dict"])):
         if count > (len(original_emb_dict[f"{method}_emb_dict"]) - 1):
             count = 0
-        o_o_similarity.append(cosine_similarity(original_emb_dict[f"{method}_emb_dict"][f"{method}_embedding_{i}"], original_emb_dict[f"{method}_emb_dict"][f"{method}_embedding_{count}"]))
+        o_o_similarity.append(toch_cosine(original_emb_dict[f"{method}_emb_dict"][f"{method}_embedding_{i}"], original_emb_dict[f"{method}_emb_dict"][f"{method}_embedding_{count}"]))
         count += 1
 
     similarity_scores["originalvsparaphrased"]["average"] = np.mean(o_p_similarity)
@@ -515,11 +515,8 @@ def dic_similarities_synset(syn_dic, original, w2v = True, model = None, tokeniz
         for lemma in syn_dic[f"sentence {i}"]:
             sents_sim[f"sentence {i}"][lemma] = []
             word_id = lemmata.index(lemma)
-            print(word_id)
 
             if w2v == True:
-                print(lemma)
-                print(sentence_no_punct)
                 word_embedding = get_w2v_embedding(sentence_no_punct.split(" ")[word_id], sentence) # getting the word2vec embedding for the current word for which we want a synonim
             else:
                 word_embedding = sent_embeddings[word_id] # getting the contextual embedding for the current word for which we want a synonim
