@@ -4,15 +4,15 @@ import csv
 import numpy as np
 from scipy import stats
 from torch.nn.functional import cosine_similarity
-# import cltk
+import cltk
 import requests
 import json
 import xml.etree.ElementTree as ET
-import spacy
+# import spacy
 
-nlp = spacy.load('grc_proiel_trf')
+# nlp = spacy.load('grc_proiel_trf')
 
-# nlp = cltk.NLP(language="grc")
+nlp = cltk.NLP(language="grc")
 
 stop = "μή, δ, ἑαυτοῦ, ἄν, ἀλλ', ἀλλά, ἄλλος, ἀπό, ἄρα, αὐτός, δ', δέ, δή, διά, δαί, δαίς, ἔτι, ἐγώ, ἐκ, ἐμός, ἐν, ἐπί, εἰ, εἰμί, εἴμι, εἰς, γάρ, γε, γα, ἡ, ἤ, καί, κατά, μέν, μετά, μή, ὁ, ὅδε, ὅς, ὅστις, ὅτι, οὕτως, οὗτος, οὔτε, οὖν, οὐδείς, οἱ, οὐ, οὐδέ, οὐκ, περί, πρός, σύ, σύν, τά, τε, τήν, τῆς, τῇ, τι, τί, τις, τίς, τό, τοί, τοιοῦτος, τόν, τούς, τοῦ, τῶν, τῷ, ὑμός, ὑπέρ, ὑπό, ὡς, ὦ, ὥστε, ἐάν, παρά, σός"
 stop_words = [word for word in stop.split(", ")]
@@ -138,12 +138,17 @@ def create_wordnet(path):
     return wordnet
 
 
-def lemmatize(string):
+def lemmatize_grecy(string):
     doc = nlp(string)
     lemmas = [token.lemma_ for token in doc]
     return lemmas
 
-def pos_tag(string):
+def lemmatize_cltk(string):
+    doc = nlp.analyze(text=string)
+    lemmas = [lemma for lemma in doc.lemmata]
+    return lemmas
+
+def pos_tag_grecy(string):
     tag_mapping = {
     'ADV': 'r',
     'NOUN': 'n',
@@ -152,6 +157,18 @@ def pos_tag(string):
     }
     doc = nlp(string)
     pos = [token.pos_ for token in doc]
+    pos_tag = [tag_mapping.get(tag, tag) for tag in pos]
+    return pos_tag
+
+def pos_tag_cltk(string):
+    tag_mapping = {
+    'ADV': 'r',
+    'NOUN': 'n',
+    'VERB': 'v',
+    'ADJ': 'a'
+    }
+    doc = nlp.analyze(text=string)
+    pos = doc.pos
     pos_tag = [tag_mapping.get(tag, tag) for tag in pos]
     return pos_tag
 
@@ -341,6 +358,14 @@ def find_sentence_with_lemma(pos, lemma):
     return sents
 
 
+def get_w2v_embedding(word, sentence):
+    doc = nlp.analyze(sentence)
+    word_id = sentence.index(word)
+    word_emb = doc.embeddings[word_id]
+    return word_emb 
+
+
+
 def get_word_embedding(word, model, tokenizer):
 
     """
@@ -397,7 +422,7 @@ def get_word_in_sent_embedding(sentence, model, tokenizer):
     return word_embeddings
 
 
-def get_synonym_embeddings(pos_list_synonyms, model, tokenizer):
+def get_synonym_embeddings(pos_list_synonyms, w2v = True, model = None, tokenizer = None):
 
     """
     Function that, given a list of synonyms, a model and a tokenizer,
@@ -412,10 +437,15 @@ def get_synonym_embeddings(pos_list_synonyms, model, tokenizer):
 
     for synonym in list_synonyms:
         synonym_embeddings = []
-        syn_sentences = find_sentence_with_lemma(pos, synonym)
+        id_sentences = find_sentence_with_lemma(pos, synonym)
 
-        for id, syn_sent in syn_sentences:
-            syn_sentence_embeddings = get_word_in_sent_embedding(syn_sent, model, tokenizer)
+        for id, syn_sent in id_sentences:
+
+            if w2v == True:
+                synonym_embedding = get_w2v_embedding(synonym, syn_sent)
+            else:
+                syn_sentence_embeddings = get_word_in_sent_embedding(syn_sent, model, tokenizer)
+
             corpus_id = int(id.split("_")[0])
             sent_id = int(id.split("_")[1])
             syn_lemmata = lemmatize_corpus(corpora[corpus_id], sent_id)
@@ -432,7 +462,7 @@ def get_synonym_embeddings(pos_list_synonyms, model, tokenizer):
     return synonyms_embeddings_t
 
 
-def dic_similarities_synset(syn_dic, original, model, tokenizer):
+def dic_similarities_synset(syn_dic, original, w2v = True, model = None, tokenizer = None):
 
     """
     Function that, given a dictionary of synonims, a list of original sentences
@@ -465,7 +495,10 @@ def dic_similarities_synset(syn_dic, original, model, tokenizer):
             sents_sim[f"sentence {i}"][lemma] = []
 
             # for pos_synonyms_t in syn_dic[f"sentence {i}"][lemma]:
-            synonym_embeddings = get_synonym_embeddings(syn_dic[f"sentence {i}"][lemma], model, tokenizer) # getting the synonyms' embeddings
+            if w2v == True:
+                synonym_embeddings = get_synonym_embeddings(syn_dic[f"sentence {i}"][lemma]) # getting the synonyms' embeddings
+            else:
+                synonym_embeddings = get_synonym_embeddings(syn_dic[f"sentence {i}"][lemma], w2v = False, model=model, tokenizer=tokenizer)
 
             # if synonym_embeddings != []:
 
@@ -473,9 +506,10 @@ def dic_similarities_synset(syn_dic, original, model, tokenizer):
                 similarities = []
 
                 for synonym_embedding in embeddings:
-                    # adjusting the dimensions of word and sense embedding:
-                    synonym_embedding = synonym_embedding.unsqueeze(0) if synonym_embedding.dim() == 1 else synonym_embedding 
-                    word_embedding = word_embedding.unsqueeze(0) if word_embedding.dim() == 1 else word_embedding
+                    if w2v == False:
+                        # adjusting the dimensions of word and sense embedding:
+                        synonym_embedding = synonym_embedding.unsqueeze(0) if synonym_embedding.dim() == 1 else synonym_embedding 
+                        word_embedding = word_embedding.unsqueeze(0) if word_embedding.dim() == 1 else word_embedding
                     sim = cosine_similarity(synonym_embedding, word_embedding) 
                     similarities.append(sim)
 
