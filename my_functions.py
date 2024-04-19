@@ -297,7 +297,8 @@ def get_synonims(original, wordnet, lemmata_list):
         
         for lemma in sentence:
 
-            if lemma not in stop_words: # we don't compute the synonims for the stopwords, since they have no semantic importance
+            # we don't compute the synonims for the stopwords, since they have no semantic importance and we check if the lemma was already checked
+            if lemma not in stop_words: #and lemma not in synonyms[f"sentence {i}"].keys(): 
                 lemma_id = sentence.index(lemma)
                 pos = pos_original[i][lemma_id]
 
@@ -321,10 +322,6 @@ def get_synonims(original, wordnet, lemmata_list):
                     
                     if syn_list != []:
                         synonyms[f"sentence {i}"][lemma] = (pos, syn_list)
-
-
-                
-
 
                 # try:
                 #     lemma_r = requests.get(f"https://greekwordnet.chs.harvard.edu/api/lemmas/{lemma}/synsets", verify=False)
