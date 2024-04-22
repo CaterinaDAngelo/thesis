@@ -272,7 +272,7 @@ def get_inflected_form(lemma, corpus, sent_id):
 
 
 
-def get_synonims(original, wordnet, lemmata_list):
+def get_synonims(original, wordnet, lemmata_list, lemmatization = "grecy"):
 
     """
     Function that takes as input a list of original sentences and, using the Ancient
@@ -286,8 +286,12 @@ def get_synonims(original, wordnet, lemmata_list):
             }
         }
     """
-    lemmata_original = [lemmatize_grecy(string) for string in original]
-    pos_original = [pos_tag_grecy(string) for string in original]
+    if lemmatization == "cltk":
+        lemmata_original = [lemmatize_cltk(string) for string in original]
+        pos_original = [pos_tag_cltk(string) for string in original]
+    elif lemmatization == "grecy":
+        lemmata_original = [lemmatize_grecy(string) for string in original]
+        pos_original = [pos_tag_grecy(string) for string in original]
 
     print(lemmata_original)
     
@@ -481,7 +485,7 @@ def get_synonym_embeddings(pos_list_synonyms, w2v = True, model = None, tokenize
     return synonyms_embeddings_t
 
 
-def dic_similarities_synset(syn_dic, original, w2v = True, model = None, tokenizer = None):
+def dic_similarities_synset(syn_dic, original, w2v = True, model = None, tokenizer = None, lemmatization = "grecy"):
 
     """
     Function that, given a dictionary of synonims, a list of original sentences
@@ -506,7 +510,10 @@ def dic_similarities_synset(syn_dic, original, w2v = True, model = None, tokeniz
             sent_embeddings = get_word_in_sent_embedding(sentence, model, tokenizer) # getting the contextual embedding for each word in the sentence
         
         sentence_no_punct = remove_punctuation(sentence)
-        lemmata = lemmatize_grecy(sentence_no_punct) # getting the lemmas of each word in the sentence
+        if lemmatization == "grecy":
+            lemmata = lemmatize_grecy(sentence_no_punct) # getting the lemmas of each word in the sentence
+        elif lemmatization == "cltk":
+            lemmata = lemmatize_cltk(sentence_no_punct) # getting the lemmas of each word in the sentence
         sents_sim[f"sentence {i}"] = {}
 
         for lemma in syn_dic[f"sentence {i}"]:
