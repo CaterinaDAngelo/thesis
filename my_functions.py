@@ -127,6 +127,7 @@ def report_similarity(original_emb_dict, paraphrased_emb_dict, confound_emb_dict
 
     return similarity_scores
 
+
 def create_wordnet(path):
     with open(path, newline='', encoding='utf-8') as file:
         reader = csv.reader(file, delimiter='\t')
@@ -149,10 +150,12 @@ def lemmatize_grecy(string):
     lemmas = [token.lemma_ for token in doc]
     return lemmas
 
+
 def lemmatize_cltk(string):
     doc = cltk_nlp.analyze(text=string)
     lemmas = [lemma for lemma in doc.lemmata]
     return lemmas
+
 
 def pos_tag_grecy(string):
     tag_mapping = {
@@ -165,6 +168,7 @@ def pos_tag_grecy(string):
     pos = [token.pos_ for token in doc]
     pos_tag = [tag_mapping.get(tag, tag) for tag in pos]
     return pos_tag
+
 
 def pos_tag_cltk(string):
     tag_mapping = {
