@@ -511,7 +511,7 @@ def dic_similarities_synset(syn_dic, sentence, w2v = True, model = None, tokeniz
         else:
             word_embedding = sent_embeddings[word_id] # getting the contextual embedding for the current word for which we want a synonim
 
-        synonym_embeddings = get_synonym_embeddings(syn_dic[f"sentence {i}"][lemma], w2v = w2v, model=model, tokenizer=tokenizer) # getting the synonyms' embeddings
+        synonym_embeddings = get_synonym_embeddings(syn_dic[lemma], w2v = w2v, model=model, tokenizer=tokenizer) # getting the synonyms' embeddings
 
         for synonym, embeddings in synonym_embeddings:
             similarities = []
