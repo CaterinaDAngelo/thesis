@@ -17,7 +17,7 @@ spacy_nlp = spacy.load('grc_proiel_trf')
 
 cltk_nlp = cltk.NLP(language="grc")
 
-stop = "μή, δ, ἑαυτοῦ, ἄν, ἀλλ', ἀλλά, ἄλλος, ἀπό, ἄρα, αὐτός, δ', δέ, δή, διά, δαί, δαίς, ἔτι, ἐγώ, ἐκ, ἐμός, ἐν, ἐπί, εἰ, εἰμί, εἴμι, εἰς, γάρ, γε, γα, ἡ, ἤ, καί, κατά, μέν, μετά, μή, ὁ, ὅδε, ὅς, ὅστις, ὅτι, οὕτως, οὗτος, οὔτε, οὖν, οὐδείς, οἱ, οὐ, οὐδέ, οὐκ, περί, πρός, σύ, σύν, τά, τε, τήν, τῆς, τῇ, τι, τί, τις, τίς, τό, τοί, τοιοῦτος, τόν, τούς, τοῦ, τῶν, τῷ, ὑμός, ὑπέρ, ὑπό, ὡς, ὦ, ὥστε, ἐάν, παρά, σός"
+stop = "μή, δ, ἑαυτοῦ, ἄν, ἀλλ', ἀλλά, ἄλλος, ἀπό, ἄρα, αὐτός, δ', δέ, δή, διά, δαί, δαίς, ἔτι, ἐγώ, ἐκ, ἐμός, ἐν, ἐπί, εἰ, εἰς, γάρ, γε, γα, ἡ, ἤ, καί, κατά, μέν, μετά, μή, ὁ, ὅδε, ὅς, ὅστις, ὅτι, οὕτως, οὗτος, οὔτε, οὖν, οὐδείς, οἱ, οὐ, οὐδέ, οὐκ, περί, πρός, σύ, σύν, τά, τε, τήν, τῆς, τῇ, τι, τί, τις, τίς, τό, τοί, τοιοῦτος, τόν, τούς, τοῦ, τῶν, τῷ, ὑμός, ὑπέρ, ὑπό, ὡς, ὦ, ὥστε, ἐάν, παρά, σός"
 stop_words = [word for word in stop.split(", ")]
 stop_words.append('̓')
 stop_words.append(",")
@@ -327,6 +327,7 @@ def find_sentence_with_lemma(pos, lemma):
                     corpus_pos = lemma_pos[1]
                 
                     if corpus_lemma is not None and lemma == corpus_lemma and pos == corpus_pos :
+                        print(lemma)
                         word_forms = [dic["word_form"] for dic in corpus[f"{sent_id}"]]
                         sent = " ".join(word_forms) 
                         lemma_id = f"{corpus_id}_{sent_id}"
@@ -337,7 +338,6 @@ def find_sentence_with_lemma(pos, lemma):
             if len(sents) == 4:
                 break
     
-    print(sents)
     return sents
 
 def get_w2v_embedding(word, sentence):
@@ -540,7 +540,7 @@ def report_similarities(sim_dic):
         # print(synonyms)
         sorted_values = sorted(sim_dic[lemma], key=lambda x: x[1], reverse=True)
         print(f"The best synonyms for {lemma} are:")
-        
+
         for syn, value in sorted_values[:20]:
             if syn in synonyms and synonyms[f"{syn}"] < value:
                     synonyms[f"{syn}"] = value
