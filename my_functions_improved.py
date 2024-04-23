@@ -403,12 +403,35 @@ def get_word_in_sent_embedding(sentence, model, tokenizer):
 
     return word_embeddings
 
+def w2v_sentence2syn_embeddings(synonym, id_syn, synonym_sent):
+    corpus_id = int(id_syn.split("_")[0]) #id of the corpus in which the synonym  is present
+    sent_id = int(id_syn.split("_")[1]) # id of the sentence in which the synonym is present
+    inflected_synonym = get_inflected_form(synonym, corpora[corpus_id], sent_id)
+    syn_embedding = get_w2v_embedding(inflected_synonym, synonym_sent) # we get the w2v embedding for the synonym
+    return syn_embedding
+            
+
+def bert_sentence2syn_embedding(synonym, id_syn, syn_sent, model, tokenizer):
+    corpus_id = int(id_syn.split("_")[0]) #id of the corpus in which the synonym  is present
+    sent_id = int(id_syn.split("_")[1]) # id of the sentence in which the synonym is present
+    syn_sentence_embeddings = get_word_in_sent_embedding(syn_sent, model, tokenizer)
+    syn_lemmata = lemmatize_corpus(corpora[corpus_id], sent_id) # list of lemmatizations per word in sentence (i need it to
+    # get the correct embedding index)
+
+    for i, list_lemmata in enumerate(syn_lemmata): # for every index, list of different lemmatizations per word in sentence containing synonym
+
+        if synonym in list_lemmata: # when we find the right list of lemmatizations
+            return syn_sentence_embeddings[i] # we append the corresponding  contextual embedding
+
+
+
 def get_synonym_embeddings(pos_list_synonyms, w2v = True, model = None, tokenizer = None):
 
     """
     Function that, given a list of synonyms, a model and a tokenizer,
-    computes the contextual embedding of each synonym in the synset 
-    in four different sentences taken from an ancient greek corpus.
+    computes BERT's contextual embedding or the word2vec embedding 
+    of each synonym in the synset in four different sentences 
+    taken from an ancient greek corpus.
     Returns a list of tuples (synonym, [embeddings]).
     """
 
@@ -420,26 +443,13 @@ def get_synonym_embeddings(pos_list_synonyms, w2v = True, model = None, tokenize
     for synonym in list_synonyms:
         synonym_embeddings = []
         id_sentences = find_sentence_with_lemma(pos, synonym)
-        synonym_embeddings = 
 
-        for id, syn_sent in id_sentences:
-
-            corpus_id = int(id.split("_")[0]) #id of the corpus in which the synonym  is present
-            sent_id = int(id.split("_")[1]) # id of the sentence in which the synonym is present
+        for id_syn, syn_sent in id_sentences:
 
             if w2v == True:
-                inflected_synonym = get_inflected_form(synonym, corpora[corpus_id], sent_id)
-                syn_embedding = get_w2v_embedding(inflected_synonym, syn_sent) # we get the w2v embedding for the synonym
-                synonym_embeddings.append(syn_embedding)
+                synonym_embeddings.append(w2v_sentence2syn_embeddings(synonym, id_syn, syn_sent))
             else:
-                syn_sentence_embeddings = get_word_in_sent_embedding(syn_sent, model, tokenizer)
-                syn_lemmata = lemmatize_corpus(corpora[corpus_id], sent_id) # list of lemmatizations per word in sentence (i need it to
-                # get the correct embedding index)
-
-                for i, list_lemmata in enumerate(syn_lemmata): # for every index, list of different lemmatizations per word in sentence containing synonym
-
-                    if synonym in list_lemmata: # when we find the right list of lemmatizations
-                        synonym_embeddings.append(syn_sentence_embeddings[i]) # we append the corresponding  contextual embedding
+                synonym_embeddings.append(bert_sentence2syn_embedding(synonym, id_syn, syn_sent, model, tokenizer))
             
         syn_emb_tup = (synonym, synonym_embeddings)
         if syn_emb_tup[1] != []:
@@ -447,7 +457,78 @@ def get_synonym_embeddings(pos_list_synonyms, w2v = True, model = None, tokenize
 
     return synonyms_embeddings_t
 
+def get_w2v_similarity(word_embedding, synonym_embedding):
+    # reshape numpy arrays to use cosine similarity
+    synonym_embedding = synonym_embedding.reshape(1, -1)
+    word_embedding = word_embedding.reshape(1, -1)
+    return sklearn_cosine(synonym_embedding, word_embedding)
 
+
+def get_bert_similarity(word_embedding, synonym_embedding):
+    # adjusting the dimensions of word and sense embedding:
+    synonym_embedding = synonym_embedding.unsqueeze(0) if synonym_embedding.dim() == 1 else synonym_embedding 
+    word_embedding = word_embedding.unsqueeze(0) if word_embedding.dim() == 1 else word_embedding
+    return torch_cosine(synonym_embedding, word_embedding) 
+
+
+
+def dic_similarities_synset(syn_dic, sentence, w2v = True, model = None, tokenizer = None, lemmatization = "grecy"):
+
+    """
+    Function that, given a dictionary of synonims, a list of original sentences
+    for which it must find synonims, a model and a tokenizer, returns a
+    dictionary of the following structure:
+    sents_sim = {"original sentence i": 
+                    {"word i": [(sense i, similarity score i), (sense i+1, similarity score i+1)
+                            ....]
+                        }
+                    }
+    where the similarity scores are calculated between the contextual embeddings of every
+    synonym in a synset (computed by extracting 4 different sentences containing the synonym from 
+    a corpus) and the contextual embedding of the word: for each synonym only the highest score
+    between the 4 different embeddings is registered
+    """
+
+    sents_sim = {}
+
+    if w2v == False:
+        sent_embeddings = get_word_in_sent_embedding(sentence, model, tokenizer) # getting the contextual embedding for each word in the sentence
+
+    sentence_no_punct = remove_punctuation(sentence)
+
+    if lemmatization == "grecy":
+        lemmata = lemmatize_grecy(sentence_no_punct) # getting the lemmas of each word in the sentence
+
+    elif lemmatization == "cltk":
+        lemmata = lemmatize_cltk(sentence_no_punct) # getting the lemmas of each word in the sentence
+
+    for lemma in syn_dic:
+        sents_sim[lemma] = []
+        word_id = lemmata.index(lemma)
+
+        if w2v == True:
+            word_embedding = get_w2v_embedding(sentence_no_punct.split(" ")[word_id], sentence) # getting the word2vec embedding for the current word for which we want a synonim
+        else:
+            word_embedding = sent_embeddings[word_id] # getting the contextual embedding for the current word for which we want a synonim
+
+        synonym_embeddings = get_synonym_embeddings(syn_dic[f"sentence {i}"][lemma], w2v = w2v, model=model, tokenizer=tokenizer) # getting the synonyms' embeddings
+
+        for synonym, embeddings in synonym_embeddings:
+            similarities = []
+
+            for synonym_embedding in embeddings:
+                if w2v == True:
+                    sim = get_w2v_similarity(word_embedding, synonym_embedding)
+                else:
+                    sim = get_bert_similarity(word_embedding, synonym_embedding)
+
+                similarities.append(sim)
+
+            similarities.sort()
+            sim_tup = (synonym, similarities[-1])
+            sents_sim[lemma].append(sim_tup)
+
+    return sents_sim
 
 wordnet = create_wordnet("wn-data-grc.tab")
 subcorpus_lemmata_list = get_list_lemmata()
