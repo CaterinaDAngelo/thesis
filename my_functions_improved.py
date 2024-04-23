@@ -246,7 +246,7 @@ def offset2greeklemma(offsets, original_word = ""):
     lemmata = []
     for offset in offsets:
 
-            for lemma in wordnet[[offset]]:
+            for lemma in wordnet[offset]:
                 if lemma not in lemmata and lemma in subcorpus_lemmata_list and lemma != original_word:
                     lemmata.append(lemma)
 
@@ -283,15 +283,13 @@ def get_synonims(original, lemmatization = "grecy"):
             lemma_id = lemmata_original.index(lemma)
             pos = pos_original[lemma_id]
 
-            syn_list = []
+            # try:
+            offsets = greeklemma2offset(lemma, pos)
 
-            try:
-                offsets = greeklemma2offset(lemma, pos)
-    
-                syn_list.append(offset2greeklemma(offsets, original_word = lemma))
-                
-                if syn_list != []:
-                    synonyms[lemma] = (pos, syn_list)
+            syn_list = offset2greeklemma(offsets, original_word = lemma)
+            
+            if syn_list != []:
+                synonyms[lemma] = (pos, syn_list)
 
             # try:
             #     lemma_r = requests.get(f"https://greekwordnet.chs.harvard.edu/api/lemmas/{lemma}/synsets", verify=False)
@@ -309,9 +307,9 @@ def get_synonims(original, lemmatization = "grecy"):
             #             synsets_dic = synsets_r.json()
             #             synonims[f"sentence {i}"][lemma][f"{synset}"] = (pos,[sin_dict["lemma"] for sin_dict in synsets_dic["results"][0]["lemmas"]["literal"]])
 
-            except Exception as e:
-                print(f"Error processing lemma {lemma}: {e}")
-                # Optionally, handle specific exceptions more granularly
+            # except Exception as e:
+            #     print(f"Error processing lemma {lemma}: {e}")
+            #     # Optionally, handle specific exceptions more granularly
             
     return synonyms
 
@@ -472,7 +470,7 @@ def get_bert_similarity(word_embedding, synonym_embedding):
 
 
 
-def dic_similarities_synset(syn_dic, sentence, w2v = True, model = None, tokenizer = None, lemmatization = "grecy"):
+def dic_similarities(syn_dic, sentence, w2v = True, model = None, tokenizer = None, lemmatization = "grecy"):
 
     """
     Function that, given a dictionary of synonims, a list of original sentences
@@ -529,6 +527,29 @@ def dic_similarities_synset(syn_dic, sentence, w2v = True, model = None, tokeniz
             sents_sim[lemma].append(sim_tup)
 
     return sents_sim
+
+def report_similarities(sim_dic):
+
+    """
+    Function that prints for each word in each original sentence its best
+    synonym with the corresponding similarity score.
+    """
+
+    for lemma in sim_dic:
+        synonyms = {}
+        # print(synonyms)
+        sorted_values = sorted(sim_dic[lemma], key=lambda x: x[1], reverse=True)
+        print(f"The best synonyms for {lemma} are:")
+        
+        for syn, value in sorted_values[:20]:
+            if syn in synonyms and synonyms[f"{syn}"] < value:
+                    synonyms[f"{syn}"] = value
+                    print(f"\t{syn} with a score of {value}")
+            elif syn not in synonyms:
+                synonyms[f"{syn}"] = value
+                print(f"\t{syn} with a score of {value}")
+            else:
+                continue
 
 wordnet = create_wordnet("wn-data-grc.tab")
 subcorpus_lemmata_list = get_list_lemmata()
