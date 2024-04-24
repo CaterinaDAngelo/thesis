@@ -215,13 +215,26 @@ def lemmatize_corpus(corpus, sent_id):
 
     return lemmata
 
+def pos_tag_corpus(corpus, sent_id):
+    pos_tags = []
+
+    for word_dic in corpus[f"{sent_id}"]:
+        word_pos = []
+
+        for lemma_pos in word_dic[f"lemmas_pos"]:
+            word_pos.append(lemma_pos[1])
+        
+        pos_tags.append(word_pos)
+
+    return pos_tags
+
 
 def get_inflected_form(lemma, corpus, sent_id):
 
     for i in range(1, len(corpus)+1):
 
         if i == sent_id:
-            for word_dic in corpus[f"{sent_id}"]:
+            for word_dic in corpus[str(sent_id)]:
 
                 for lemma_pos in word_dic[f"lemmas_pos"]:
                     if lemma_pos[0] == lemma:

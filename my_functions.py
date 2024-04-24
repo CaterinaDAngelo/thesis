@@ -519,7 +519,6 @@ def dic_similarities_synset(syn_dic, original, w2v = True, model = None, tokeniz
         elif lemmatization == "cltk":
             lemmata = lemmatize_cltk(sentence_no_punct) # getting the lemmas of each word in the sentence
         sents_sim[f"sentence {i}"] = {}
-
         for lemma in syn_dic[f"sentence {i}"]:
             sents_sim[f"sentence {i}"][lemma] = []
             word_id = lemmata.index(lemma)
