@@ -564,3 +564,77 @@ def report_similarities(sim_dic):
 
 wordnet = create_wordnet("wn-data-grc.tab")
 subcorpus_lemmata_list = get_list_lemmata()
+
+############## FUCNTIONS TO CHANGE THE VERB'S TENSE AND GENERATE PARAPHRASIS #######################àà
+
+
+def find_verbs(sentence):
+    verbs = []
+    lemmata = lemmatize_grecy(sentence)
+    pos_tags = pos_tag_grecy(sentence)
+    for index, pos in enumerate (pos_tags):
+        if pos == "v":
+            verb = lemmata[index]
+            if verb not in verbs:
+                verbs.append(verb)
+
+    return verbs
+
+def find_morph_verb(s_id, sentence):
+    morphs = []
+    corpus_id = int(s_id.split("_")[0])
+    sent_id = s_id.split("_")[1]
+    lemma_verbs = find_verbs(sentence)
+
+    for word_dic in corpora[corpus_id][sent_id]:
+        for lemma_pos in word_dic[f"lemmas_pos"]:
+            corpus_lemma = lemma_pos[0]
+            if corpus_lemma in lemma_verbs:
+                morphs.append(word_dic["morph"])
+            
+    return morphs
+
+def get_inflected_verb(verbs, morphs):
+    new_verbs = []
+
+    for verb, morph in zip(verbs, morphs):
+
+        for corpus in corpora:
+
+            for sent_id in range(1, len(corpus)+1):
+
+                for word_dic in corpus[f"{sent_id}"]:
+
+                    for lemma_pos in word_dic["lemmas_pos"]:
+                        if verb == lemma_pos[0] and morph != word_dic["morph"]:
+                            person = 1
+                            num = 2
+                            tense = 3
+                            mode = 4
+                            act_pass = 5
+                            case = 7
+                            if morph[person:tense] == word_dic["morph"][person:tense] and morph[mode:case+1] == word_dic["morph"][mode:case+1] and word_dic["word_form"] not in new_verbs:
+                                    new_verbs.append(word_dic["word_form"])
+
+    return new_verbs
+
+
+def replace_verb(sentence, sent_id):
+    new_sents = []
+    lemmata = lemmatize_grecy(sentence)
+    split_sent = remove_punctuation(sentence).split(" ")
+    verbs = find_verbs(sentence)
+    morphs = find_morph_verb(sent_id, sentence)
+    for idx, lemma in enumerate(lemmata):
+        idxs_verbs = []
+        if lemma in verbs:
+            idxs_verbs.append(idx)
+    new_verbs = get_inflected_verb(verbs, morphs)
+
+    for new_verb in new_verbs:
+
+        split_sent[idx] = new_verb
+        new_sent = " ".join(split_sent)
+        new_sents.append(new_sent)
+
+    return new_sents
