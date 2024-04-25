@@ -201,17 +201,13 @@ def get_list_lemmata():
 def lemmatize_corpus(corpus, sent_id):
     lemmata = []
 
+    for word_dic in corpus[f"{sent_id}"]:
+        word_lemmata = []
 
-    for i in range(1, len(corpus)+1):
-
-        if i == sent_id:
-            for word_dic in corpus[f"{sent_id}"]:
-                word_lemmata = []
-
-                for lemma_pos in word_dic[f"lemmas_pos"]:
-                    word_lemmata.append(lemma_pos[0])
-                
-                lemmata.append(word_lemmata)
+        for lemma_pos in word_dic[f"lemmas_pos"]:
+            word_lemmata.append(lemma_pos[0])
+        
+        lemmata.append(word_lemmata)
 
     return lemmata
 
@@ -290,11 +286,10 @@ def get_synonims(original, lemmatization = "grecy"):
     
     synonyms = {}
         
-    for lemma in lemmata_original:
+    for idx, lemma in enumerate(lemmata_original):
 
         if lemma not in stop_words: # we don't compute the synonims for the stopwords, since they have no semantic importance 
-            lemma_id = lemmata_original.index(lemma)
-            pos = pos_original[lemma_id]
+            pos = pos_original[idx]
 
             # try:
             offsets = greeklemma2offset(lemma, pos)
@@ -515,7 +510,10 @@ def dic_similarities(syn_dic, sentence, w2v = True, model = None, tokenizer = No
 
     for lemma in syn_dic:
         sents_sim[lemma] = []
-        word_id = lemmata.index(lemma)
+        for i, l in enumerate(lemmata):
+            if l == lemma:
+                word_id = i
+        # word_id = lemmata.index(lemma)
 
         if w2v == True:
             word_embedding = get_w2v_embedding(sentence_no_punct.split(" ")[word_id], sentence) # getting the word2vec embedding for the current word for which we want a synonim
