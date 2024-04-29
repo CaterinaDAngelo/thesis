@@ -608,10 +608,8 @@ def get_inflected_verb(verbs, morphs):
                     for lemma_pos in word_dic["lemmas_pos"]:
                         if verb == lemma_pos[0] and morph != word_dic["morph"]:
                             person = 1
-                            num = 2
                             tense = 3
                             mode = 4
-                            act_pass = 5
                             case = 7
                             if morph[person:tense] == word_dic["morph"][person:tense] and morph[mode:case+1] == word_dic["morph"][mode:case+1] and word_dic["word_form"] not in new_verbs:
                                     new_verbs.append(word_dic["word_form"])
@@ -638,3 +636,52 @@ def replace_verb(sentence, sent_id):
         new_sents.append(new_sent)
 
     return new_sents
+
+############################# FUNCTIONS FOR FINDING CONFOUNDERS ######################################àà
+
+def find_keyword_sentences(lemmata, paraphrases):
+    sents = []
+    for corpus_id, corpus in enumerate(corpora):
+
+        for sent_id in range(1, len(corpus)+1):
+            same_keywords = []
+
+            for word_dic in corpus[f"{sent_id}"]:
+
+                for lemma_pos in word_dic[f"lemmas_pos"]:
+                    corpus_lemma = lemma_pos[0]
+
+                    if corpus_lemma in lemmata and corpus_lemma not in same_keywords:
+                        same_keywords.append(sent_id)
+
+            if len(same_keywords) >= 2:
+                word_forms = [dic["word_form"] for dic in corpus[f"{sent_id}"]]
+                sent = " ".join(word_forms) 
+                lemma_id = f"{corpus_id}_{sent_id}"
+                id_sents = (lemma_id, sent)
+                check = True
+                for paraphrasis in paraphrases:
+                    if paraphrasis in sent:
+                        check = False
+                if check == True:
+                    sent_tup = (len(same_keywords), sent)
+                    sents.append(sent_tup)
+    
+    if sents != []:
+        sents.sort(key=lambda x: x[0], reverse = True)
+    return sents[0:5]
+
+
+def report_keyword_confounders(strings, paraphrases):
+    for i, sentence in enumerate(strings):
+        print(f"\nsentences with same keyword but different meaning than '{sentence}' are:")
+        lemmata = lemmatize_cltk(sentence)
+        pos_tags = pos_tag_cltk(sentence)
+        good_lemmata = []
+        for lemma, pos in zip(lemmata, pos_tags):
+            if pos == "n" or pos == "v":
+                good_lemmata.append(lemma)
+        list_sents = find_keyword_sentences(good_lemmata, paraphrases=paraphrases[i])
+
+        for i, sent in list_sents:
+            print(i, sent)
