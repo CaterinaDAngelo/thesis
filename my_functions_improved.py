@@ -155,6 +155,11 @@ def lemmatize_cltk(string):
     lemmas = [lemma for lemma in doc.lemmata]
     return lemmas
 
+def remove_blanks(lemmata):
+    new_lemmata = [lemma for lemma in lemmata if lemma != '̓']
+    return new_lemmata
+
+
 
 def pos_tag_grecy(string):
     tag_mapping = {
@@ -335,7 +340,7 @@ def find_sentence_with_lemma(pos, lemma):
                     corpus_pos = lemma_pos[1]
                 
                     if corpus_lemma is not None and lemma == corpus_lemma and pos == corpus_pos :
-                        print(lemma)
+                
                         word_forms = [dic["word_form"] for dic in corpus[f"{sent_id}"]]
                         sent = " ".join(word_forms) 
                         lemma_id = f"{corpus_id}_{sent_id}"
@@ -501,6 +506,8 @@ def dic_similarities(syn_dic, sentence, w2v = True, model = None, tokenizer = No
         sent_embeddings = get_word_in_sent_embedding(sentence, model, tokenizer) # getting the contextual embedding for each word in the sentence
 
     sentence_no_punct = remove_punctuation(sentence)
+    splitted_sent = sentence_no_punct.split(" ")
+    spl_sent_no_blanks = remove_blanks(splitted_sent)
 
     if lemmatization == "grecy":
         lemmata = lemmatize_grecy(sentence_no_punct) # getting the lemmas of each word in the sentence
@@ -508,15 +515,20 @@ def dic_similarities(syn_dic, sentence, w2v = True, model = None, tokenizer = No
     elif lemmatization == "cltk":
         lemmata = lemmatize_cltk(sentence_no_punct) # getting the lemmas of each word in the sentence
 
+    lemmata = remove_blanks(lemmata)
+
     for lemma in syn_dic:
         sents_sim[lemma] = []
         for i, l in enumerate(lemmata):
             if l == lemma:
                 word_id = i
+                word = lemma
         # word_id = lemmata.index(lemma)
 
         if w2v == True:
-            word_embedding = get_w2v_embedding(sentence_no_punct.split(" ")[word_id], sentence) # getting the word2vec embedding for the current word for which we want a synonim
+            print(word)
+            print(spl_sent_no_blanks[word_id])
+            word_embedding = get_w2v_embedding(spl_sent_no_blanks[word_id], sentence) # getting the word2vec embedding for the current word for which we want a synonim
         else:
             word_embedding = sent_embeddings[word_id] # getting the contextual embedding for the current word for which we want a synonim
 
