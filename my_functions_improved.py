@@ -64,6 +64,54 @@ def mean_cls_embeddings(phrases_list, model, tokenizer):
     return emb_dict
 
 
+def report_similarity_sent(original_emb, paraphrased_emb, confound_emb, report = True):
+
+
+    similarity_scores = {"originalvsparaphrased": {},
+                         "originalvsconfound": {},
+                         "originalvsoriginal": {},
+                         }
+    o_p_similarity = []
+    o_c_similarity = []
+    o_o_similarity = []
+
+    for i in range(len(original_emb)):
+        o_p_similarity.append(sklearn_cosine(original_emb[i].reshape(1, -1), paraphrased_emb[i].reshape(1, -1)))
+    
+    for i in range(len(original_emb)):
+        o_c_similarity.append(sklearn_cosine(original_emb[i].reshape(1, -1), confound_emb[i].reshape(1, -1)))
+
+    count = 1
+    for i in range(len(original_emb)):
+        if count > (len(original_emb) - 1):
+            count = 0
+        o_o_similarity.append(sklearn_cosine(original_emb[i].reshape(1, -1), original_emb[count].reshape(1, -1)))
+        count += 1
+
+    similarity_scores["originalvsparaphrased"]["average"] = np.mean(o_p_similarity)
+    similarity_scores["originalvsparaphrased"]["variance"] = np.var(o_p_similarity)
+
+    similarity_scores["originalvsconfound"]["average"] = np.mean(o_c_similarity)
+    similarity_scores["originalvsconfound"]["variance"] = np.var(o_c_similarity)
+
+    similarity_scores["originalvsoriginal"]["average"] = np.mean(o_o_similarity)
+    similarity_scores["originalvsoriginal"]["variance"] = np.var(o_o_similarity)
+
+    if report:
+        para_t_stat, para_p_value = stats.ttest_ind(o_p_similarity, o_o_similarity)
+        print(f"T-statistic between original-paraphrased and original-original: {para_t_stat}, P-value: {para_p_value}")
+
+        conf_t_stat, conf_p_value = stats.ttest_ind(o_c_similarity, o_o_similarity)
+        print(f"T-statistic between original-confound and original_original: {conf_t_stat}, P-value: {conf_p_value}")
+
+        pc_t_stat, pc_p_value = stats.ttest_ind(o_p_similarity, o_c_similarity)
+        print(f"T-statistic between original-paraphrased and original-confound: {pc_t_stat}, P-value: {pc_p_value}")
+
+    return similarity_scores
+
+
+
+
 def report_similarity(original_emb_dict, paraphrased_emb_dict, confound_emb_dict, method = "", report = True):
 
     """
