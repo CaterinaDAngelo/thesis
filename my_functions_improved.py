@@ -701,27 +701,31 @@ def replace_verb(sentence, sent_id):
 
 def find_keyword_sentences(lemmata, paraphrases):
     sents = []
-    for corpus_id, corpus in enumerate(corpora):
+    for corpus in corpora:
 
         for sent_id in range(1, len(corpus)+1):
             same_keywords = []
+            keywords = []
 
             for word_dic in corpus[f"{sent_id}"]:
 
                 for lemma_pos in word_dic[f"lemmas_pos"]:
                     corpus_lemma = lemma_pos[0]
 
-                    if corpus_lemma in lemmata and corpus_lemma not in same_keywords:
+                    if corpus_lemma in lemmata and corpus_lemma not in keywords:            
+                        keywords.append(corpus_lemma)
                         same_keywords.append(sent_id)
 
-            if len(same_keywords) >= 2:
+            if (len(same_keywords) >= 2) and (len(same_keywords) < len(lemmata)):
                 word_forms = [dic["word_form"] for dic in corpus[f"{sent_id}"]]
                 sent = " ".join(word_forms) 
-                lemma_id = f"{corpus_id}_{sent_id}"
-                id_sents = (lemma_id, sent)
+                # lemma_id = f"{corpus_id}_{sent_id}"
+                # id_sents = (lemma_id, sent)
                 check = True
                 for paraphrasis in paraphrases:
-                    if paraphrasis in sent:
+                    paraphrasis_tokens = cltk_nlp.analyze(paraphrasis).tokens
+                    paraphrasis_sent = " ".join(paraphrasis_tokens)
+                    if paraphrasis_sent in sent:
                         check = False
                 if check == True:
                     sent_tup = (len(same_keywords), sent)
@@ -736,6 +740,7 @@ def report_keyword_confounders(strings, paraphrases):
     for i, sentence in enumerate(strings):
         print(f"\nsentences with same keyword but different meaning than '{sentence}' are:")
         lemmata = lemmatize_cltk(sentence)
+        print(lemmata)
         pos_tags = pos_tag_cltk(sentence)
         good_lemmata = []
         for lemma, pos in zip(lemmata, pos_tags):
